@@ -1,5 +1,5 @@
 pub mod ffi;
-use ffi::api::LuauApi;
+pub use ffi::api::LuauApi;
 
 use std::ffi::CString;
 use std::sync::OnceLock;
