@@ -5,3 +5,4 @@ edition = "2024"
 description = "Bindings to the seal runtime's Luau C Stack API to write FFI plugins."
 
 [dependencies]
+bstr = "1.12.1"

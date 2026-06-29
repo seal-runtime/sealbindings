@@ -8,13 +8,13 @@ use api::LuauApi;
 
 use std::ffi::{c_double, c_float, c_void, c_char, c_int};
 
-use crate::LUAU_API;
+use crate::{LUAU_API, LUAU_CONSTANTS};
 
 /// Returns the initialized Luau API vtable.
 ///
 /// # Panics
 /// Panics if `initialize_luau_api` has not been called.
-pub fn luau_api() -> &'static LuauApi {
+pub(crate) fn luau_api() -> &'static LuauApi {
     LUAU_API
         .get()
         .expect("Luau API not initialized; call ffi::initialize first")
@@ -22,52 +22,62 @@ pub fn luau_api() -> &'static LuauApi {
 
 // --- luau constants (from lua.h) ---
 
+// These are truly invariant Lua API constants safe to hardcode.
 pub const LUA_MULTRET: c_int = -1;
-
 pub const LUA_UTAG_LIMIT: c_int = 128;
 pub const LUA_LUTAG_LIMIT: c_int = 128;
-
-pub const LUA_REGISTRYINDEX: c_int = -1000000 - 2000;
-pub const LUA_ENVIRONINDEX: c_int = -1000000 - 2001;
-pub const LUA_GLOBALSINDEX: c_int = -1000000 - 2002;
-
-pub const LUA_OK: c_int = 0;
-pub const LUA_YIELD: c_int = 1;
-pub const LUA_ERRRUN: c_int = 2;
-pub const LUA_ERRSYNTAX: c_int = 3;
-pub const LUA_ERRMEM: c_int = 4;
-pub const LUA_ERRERR: c_int = 5;
-
-pub const LUA_TNONE: c_int = -1;
-pub const LUA_TNIL: c_int = 0;
-pub const LUA_TBOOLEAN: c_int = 1;
-pub const LUA_TLIGHTUSERDATA: c_int = 2;
-pub const LUA_TNUMBER: c_int = 3;
-pub const LUA_TVECTOR: c_int = 4;
-pub const LUA_TSTRING: c_int = 5;
-pub const LUA_TTABLE: c_int = 6;
-pub const LUA_TFUNCTION: c_int = 7;
-pub const LUA_TUSERDATA: c_int = 8;
-pub const LUA_TTHREAD: c_int = 9;
-pub const LUA_TBUFFER: c_int = 10;
-
 pub const LUA_MINSTACK: c_int = 20;
-
-pub const LUA_GCSTOP: c_int = 0;
-pub const LUA_GCRESTART: c_int = 1;
-pub const LUA_GCCOLLECT: c_int = 2;
-pub const LUA_GCCOUNT: c_int = 3;
-pub const LUA_GCCOUNTB: c_int = 4;
-pub const LUA_GCISRUNNING: c_int = 5;
-pub const LUA_GCSTEP: c_int = 6;
-pub const LUA_GCSETGOAL: c_int = 7;
-pub const LUA_GCSETSTEPMUL: c_int = 8;
-pub const LUA_GCSETSTEPSIZE: c_int = 9;
-
 pub const LUA_NOREF: c_int = -1;
 pub const LUA_REFNIL: c_int = 0;
-
 pub const LUA_IDSIZE: usize = 256;
+
+// Version-sensitive constants: copied from the LuauApi into sealbindings-owned storage
+// during initialize(), so reads are cheap local lookups rather than vtable dereferences.
+#[inline(always)]
+fn constants() -> &'static crate::LuauConstants {
+    LUAU_CONSTANTS.get().expect("Luau API not initialized; call initialize first")
+}
+
+// Stack pseudo-indices
+#[inline(always)] pub fn LUA_REGISTRYINDEX() -> c_int { constants().LUA_REGISTRYINDEX }
+#[inline(always)] pub fn LUA_ENVIRONINDEX()  -> c_int { constants().LUA_ENVIRONINDEX }
+#[inline(always)] pub fn LUA_GLOBALSINDEX()  -> c_int { constants().LUA_GLOBALSINDEX }
+#[inline(always)] pub fn LUAI_MAXCSTACK()    -> c_int { constants().LUAI_MAXCSTACK }
+
+// Thread status (lua_Status)
+#[inline(always)] pub fn LUA_OK()       -> c_int { constants().LUA_OK }
+#[inline(always)] pub fn LUA_YIELD()    -> c_int { constants().LUA_YIELD }
+#[inline(always)] pub fn LUA_ERRRUN()   -> c_int { constants().LUA_ERRRUN }
+#[inline(always)] pub fn LUA_ERRSYNTAX() -> c_int { constants().LUA_ERRSYNTAX }
+#[inline(always)] pub fn LUA_ERRMEM()   -> c_int { constants().LUA_ERRMEM }
+#[inline(always)] pub fn LUA_ERRERR()   -> c_int { constants().LUA_ERRERR }
+
+// GC operations (lua_GCOp)
+#[inline(always)] pub fn LUA_GCSTOP()        -> c_int { constants().LUA_GCSTOP }
+#[inline(always)] pub fn LUA_GCRESTART()     -> c_int { constants().LUA_GCRESTART }
+#[inline(always)] pub fn LUA_GCCOLLECT()     -> c_int { constants().LUA_GCCOLLECT }
+#[inline(always)] pub fn LUA_GCCOUNT()       -> c_int { constants().LUA_GCCOUNT }
+#[inline(always)] pub fn LUA_GCCOUNTB()      -> c_int { constants().LUA_GCCOUNTB }
+#[inline(always)] pub fn LUA_GCISRUNNING()   -> c_int { constants().LUA_GCISRUNNING }
+#[inline(always)] pub fn LUA_GCSTEP()        -> c_int { constants().LUA_GCSTEP }
+#[inline(always)] pub fn LUA_GCSETGOAL()     -> c_int { constants().LUA_GCSETGOAL }
+#[inline(always)] pub fn LUA_GCSETSTEPMUL()  -> c_int { constants().LUA_GCSETSTEPMUL }
+#[inline(always)] pub fn LUA_GCSETSTEPSIZE() -> c_int { constants().LUA_GCSETSTEPSIZE }
+
+// Type tags (LUA_T*) — kept last so future Luau types can be appended without shifting
+#[inline(always)] pub fn LUA_TNONE()          -> c_int { constants().LUA_TNONE }
+#[inline(always)] pub fn LUA_TNIL()           -> c_int { constants().LUA_TNIL }
+#[inline(always)] pub fn LUA_TBOOLEAN()       -> c_int { constants().LUA_TBOOLEAN }
+#[inline(always)] pub fn LUA_TLIGHTUSERDATA() -> c_int { constants().LUA_TLIGHTUSERDATA }
+#[inline(always)] pub fn LUA_TNUMBER()        -> c_int { constants().LUA_TNUMBER }
+#[inline(always)] pub fn LUA_TINTEGER()       -> c_int { constants().LUA_TINTEGER }
+#[inline(always)] pub fn LUA_TVECTOR()        -> c_int { constants().LUA_TVECTOR }
+#[inline(always)] pub fn LUA_TSTRING()        -> c_int { constants().LUA_TSTRING }
+#[inline(always)] pub fn LUA_TTABLE()         -> c_int { constants().LUA_TTABLE }
+#[inline(always)] pub fn LUA_TFUNCTION()      -> c_int { constants().LUA_TFUNCTION }
+#[inline(always)] pub fn LUA_TUSERDATA()      -> c_int { constants().LUA_TUSERDATA }
+#[inline(always)] pub fn LUA_TTHREAD()        -> c_int { constants().LUA_TTHREAD }
+#[inline(always)] pub fn LUA_TBUFFER()        -> c_int { constants().LUA_TBUFFER }
 
 //
 // State manipulation
@@ -337,12 +347,12 @@ pub unsafe fn lua_tonumberx(
 /// - `state` must be valid.
 /// - `idx` must be a valid stack index.
 /// - `isnum` may be null or a valid pointer.
-pub unsafe fn lua_tointegerx_(
+pub unsafe fn lua_tointegerx(
     state: *mut lua_State,
     idx: c_int,
     isnum: *mut c_int,
 ) -> c_int {
-    unsafe { (luau_api().lua_tointegerx_)(state, idx, isnum) }
+    unsafe { (luau_api().lua_tointegerx)(state, idx, isnum) }
 }
 
 /// Converts value at `idx` to an unsigned integer.
@@ -565,8 +575,8 @@ pub unsafe fn lua_pushnumber(state: *mut lua_State, n: lua_Number) {
 /// # Safety
 /// - `state` must be valid.
 /// - Stack must have space for one value.
-pub unsafe fn lua_pushinteger_(state: *mut lua_State, n: c_int) {
-    unsafe { (luau_api().lua_pushinteger_)(state, n) }
+pub unsafe fn lua_pushinteger(state: *mut lua_State, n: c_int) {
+    unsafe { (luau_api().lua_pushinteger)(state, n) }
 }
 
 /// Pushes an unsigned integer onto the stack.
@@ -592,8 +602,8 @@ pub unsafe fn lua_pushvector(state: *mut lua_State, x: c_float, y: c_float, z: c
 /// # Safety
 /// - `state` must be valid.
 /// - `s` must point to `l` bytes of readable memory.
-pub unsafe fn lua_pushlstring_(state: *mut lua_State, s: *const c_char, l: usize) {
-    unsafe { (luau_api().lua_pushlstring_)(state, s, l) }
+pub unsafe fn lua_pushlstring(state: *mut lua_State, s: *const c_char, l: usize) {
+    unsafe { (luau_api().lua_pushlstring)(state, s, l) }
 }
 
 /// Pushes a string from a NUL‑terminated C string.
@@ -602,7 +612,7 @@ pub unsafe fn lua_pushlstring_(state: *mut lua_State, s: *const c_char, l: usize
 /// - `state` must be valid.
 /// - `s` must be a valid, NUL‑terminated C string.
 pub unsafe fn lua_pushstring(state: *mut lua_State, s: *const c_char) {
-    unsafe { (luau_api().lua_pushstring_)(state, s) }
+    unsafe { (luau_api().lua_pushstring)(state, s) }
 }
 
 /// Pushes a C closure with upvalues and optional continuation.
@@ -750,8 +760,8 @@ pub unsafe fn lua_rawget(state: *mut lua_State, idx: c_int) -> c_int {
 /// # Safety
 /// - `state` must be valid.
 /// - `idx` must be valid.
-pub unsafe fn lua_rawgeti_(state: *mut lua_State, idx: c_int, n: c_int) -> c_int {
-    unsafe { (luau_api().lua_rawgeti_)(state, idx, n) }
+pub unsafe fn lua_rawgeti(state: *mut lua_State, idx: c_int, n: c_int) -> c_int {
+    unsafe { (luau_api().lua_rawgeti)(state, idx, n) }
 }
 
 /// Raw pointer‑keyed access with tag.
@@ -860,8 +870,8 @@ pub unsafe fn lua_rawset(state: *mut lua_State, idx: c_int) {
 /// # Safety
 /// - `state` must be valid.
 /// - `idx` and value on stack must be valid.
-pub unsafe fn lua_rawseti_(state: *mut lua_State, idx: c_int, n: c_int) {
-    unsafe { (luau_api().lua_rawseti_)(state, idx, n) }
+pub unsafe fn lua_rawseti(state: *mut lua_State, idx: c_int, n: c_int) {
+    unsafe { (luau_api().lua_rawseti)(state, idx, n) }
 }
 
 /// Raw pointer‑keyed set with tag.
@@ -979,8 +989,8 @@ pub unsafe fn lua_break(state: *mut lua_State) -> c_int {
 /// # Safety
 /// - Both states must be valid and related.
 /// - Stack layout must match Luau’s expectations.
-pub unsafe fn lua_resume_(state: *mut lua_State, from: *mut lua_State, narg: c_int) -> c_int {
-    unsafe { (luau_api().lua_resume_)(state, from, narg) }
+pub unsafe fn lua_resume(state: *mut lua_State, from: *mut lua_State, narg: c_int) -> c_int {
+    unsafe { (luau_api().lua_resume)(state, from, narg) }
 }
 
 /// Resumes a coroutine with an error.
@@ -1432,8 +1442,8 @@ pub unsafe fn lua_tonumber(state: *mut lua_State, idx: c_int) -> lua_Number {
 /// # Safety
 /// - `state` must be valid.
 /// - `idx` must be valid.
-pub unsafe fn lua_tointeger_(state: *mut lua_State, idx: c_int) -> c_int {
-    unsafe { (luau_api().lua_tointeger_)(state, idx) }
+pub unsafe fn lua_tointeger(state: *mut lua_State, idx: c_int) -> c_int {
+    unsafe { (luau_api().lua_tointeger)(state, idx) }
 }
 
 /// Converts value at `idx` to an unsigned integer.
@@ -1695,8 +1705,8 @@ pub unsafe fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const
 /// # Safety
 /// - `L` must be valid.
 /// - `obj` and `e` must be valid.
-pub unsafe fn luaL_getmetafield_(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int {
-    unsafe { (luau_api().luaL_getmetafield_)(L, obj, e) }
+pub unsafe fn luaL_getmetafield(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int {
+    unsafe { (luau_api().luaL_getmetafield)(L, obj, e) }
 }
 
 /// Calls a metamethod on an object.
@@ -1790,8 +1800,8 @@ pub unsafe fn luaL_optboolean(L: *mut lua_State, narg: c_int, def: c_int) -> c_i
 /// # Safety
 /// - `L` must be valid.
 /// - `narg` must be valid.
-pub unsafe fn luaL_checkinteger_(L: *mut lua_State, narg: c_int) -> c_int {
-    unsafe { (luau_api().luaL_checkinteger_)(L, narg) }
+pub unsafe fn luaL_checkinteger(L: *mut lua_State, narg: c_int) -> c_int {
+    unsafe { (luau_api().luaL_checkinteger)(L, narg) }
 }
 
 /// Returns an optional integer argument.
@@ -1799,8 +1809,8 @@ pub unsafe fn luaL_checkinteger_(L: *mut lua_State, narg: c_int) -> c_int {
 /// # Safety
 /// - `L` must be valid.
 /// - `narg` must be valid.
-pub unsafe fn luaL_optinteger_(L: *mut lua_State, narg: c_int, def: c_int) -> c_int {
-    unsafe { (luau_api().luaL_optinteger_)(L, narg, def) }
+pub unsafe fn luaL_optinteger(L: *mut lua_State, narg: c_int, def: c_int) -> c_int {
+    unsafe { (luau_api().luaL_optinteger)(L, narg, def) }
 }
 
 /// Checks and returns an unsigned argument.
@@ -1849,7 +1859,7 @@ pub unsafe fn luaL_optvector(
 /// - `L` must be valid.
 /// - `msg` must be a valid C string.
 pub unsafe fn luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char) {
-    unsafe { (luau_api().luaL_checkstack_)(L, sz, msg) }
+    unsafe { (luau_api().luaL_checkstack)(L, sz, msg) }
 }
 
 /// Checks that argument `narg` has type `t`.
@@ -1875,8 +1885,8 @@ pub unsafe fn luaL_checkany(L: *mut lua_State, narg: c_int) {
 /// # Safety
 /// - `L` must be valid.
 /// - `tname` must be a valid C string.
-pub unsafe fn luaL_newmetatable_(L: *mut lua_State, tname: *const c_char) -> c_int {
-    unsafe { (luau_api().luaL_newmetatable_)(L, tname) }
+pub unsafe fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int {
+    unsafe { (luau_api().luaL_newmetatable)(L, tname) }
 }
 
 /// Checks and returns userdata of a given type.
@@ -1934,8 +1944,8 @@ pub unsafe fn luaL_checkoption(
 /// # Safety
 /// - `L` must be valid.
 /// - `idx` and `len` must be valid.
-pub unsafe fn luaL_tolstring_(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char {
-    unsafe { (luau_api().luaL_tolstring_)(L, idx, len) }
+pub unsafe fn luaL_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char {
+    unsafe { (luau_api().luaL_tolstring)(L, idx, len) }
 }
 
 /// Creates a new Luau state with default allocator.
@@ -1987,8 +1997,8 @@ pub unsafe fn luaL_callyieldable(L: *mut lua_State, nargs: c_int, nresults: c_in
 ///
 /// # Safety
 /// - `L` must be valid.
-pub unsafe fn luaL_sandbox_(L: *mut lua_State) {
-    unsafe { (luau_api().luaL_sandbox_)(L) }
+pub unsafe fn luaL_sandbox(L: *mut lua_State) {
+    unsafe { (luau_api().luaL_sandbox)(L) }
 }
 
 /// Applies sandboxing to the current thread.
