@@ -52,7 +52,7 @@ pub struct LuauApi {
         idx: c_int,
         isnum: *mut c_int,
     ) -> lua_Number,
-    pub lua_tointegerx_: unsafe extern "C-unwind" fn(
+    pub lua_tointegerx: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         idx: c_int,
         isnum: *mut c_int,
@@ -110,7 +110,7 @@ pub struct LuauApi {
     //
     pub lua_pushnil: unsafe extern "C-unwind" fn(state: *mut lua_State),
     pub lua_pushnumber: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Number),
-    pub lua_pushinteger_: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
+    pub lua_pushinteger: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_pushunsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Unsigned),
     pub lua_pushvector: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
@@ -118,12 +118,12 @@ pub struct LuauApi {
         y: c_float,
         z: c_float,
     ),
-    pub lua_pushlstring_: unsafe extern "C-unwind" fn(
+    pub lua_pushlstring: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         s: *const c_char,
         l: usize,
     ),
-    pub lua_pushstring_: unsafe extern "C-unwind" fn(state: *mut lua_State, s: *const c_char),
+    pub lua_pushstring: unsafe extern "C-unwind" fn(state: *mut lua_State, s: *const c_char),
     // pub lua_pushfstring: unsafe extern "C-unwind" fn(
     //     state: *mut lua_State,
     //     fmt: *const c_char,
@@ -177,7 +177,7 @@ pub struct LuauApi {
         k: *const c_char,
     ) -> c_int,
     pub lua_rawget: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
-    pub lua_rawgeti_: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, n: c_int) -> c_int,
+    pub lua_rawgeti: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, n: c_int) -> c_int,
     pub lua_rawgetptagged: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         idx: c_int,
@@ -203,7 +203,7 @@ pub struct LuauApi {
         k: *const c_char,
     ),
     pub lua_rawset: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int),
-    pub lua_rawseti_: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, n: c_int),
+    pub lua_rawseti: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, n: c_int),
     pub lua_rawsetptagged: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         idx: c_int,
@@ -241,7 +241,7 @@ pub struct LuauApi {
     //
     pub lua_yield: unsafe extern "C-unwind" fn(state: *mut lua_State, nresults: c_int) -> c_int,
     pub lua_break: unsafe extern "C-unwind" fn(state: *mut lua_State) -> c_int,
-    pub lua_resume_: unsafe extern "C-unwind" fn(
+    pub lua_resume: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         from: *mut lua_State,
         narg: c_int,
@@ -395,7 +395,7 @@ pub struct LuauApi {
     // Inline helpers / macros implemented as Rust functions
     //
     pub lua_tonumber: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> lua_Number,
-    pub lua_tointeger_: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
+    pub lua_tointeger: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
     pub lua_tounsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, i: c_int) -> lua_Unsigned,
     pub lua_pop: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_newtable: unsafe extern "C-unwind" fn(state: *mut lua_State),
@@ -444,7 +444,7 @@ pub struct LuauApi {
         l: *const luaL_Reg,
     ),
 
-    pub luaL_getmetafield_: unsafe extern "C-unwind" fn(
+    pub luaL_getmetafield: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         obj: c_int,
         e: *const c_char,
@@ -503,12 +503,12 @@ pub struct LuauApi {
         def: c_int,
     ) -> c_int,
 
-    pub luaL_checkinteger_: unsafe extern "C-unwind" fn(
+    pub luaL_checkinteger: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         narg: c_int,
     ) -> c_int,
 
-    pub luaL_optinteger_: unsafe extern "C-unwind" fn(
+    pub luaL_optinteger: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         narg: c_int,
         def: c_int,
@@ -536,7 +536,7 @@ pub struct LuauApi {
         def: *const c_float,
     ) -> *const c_float,
 
-    pub luaL_checkstack_: unsafe extern "C-unwind" fn(
+    pub luaL_checkstack: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         sz: c_int,
         msg: *const c_char,
@@ -553,7 +553,7 @@ pub struct LuauApi {
         narg: c_int,
     ),
 
-    pub luaL_newmetatable_: unsafe extern "C-unwind" fn(
+    pub luaL_newmetatable: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         tname: *const c_char,
     ) -> c_int,
@@ -588,7 +588,7 @@ pub struct LuauApi {
         lst: *const *const c_char,
     ) -> c_int,
 
-    pub luaL_tolstring_: unsafe extern "C-unwind" fn(
+    pub luaL_tolstring: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
         idx: c_int,
         len: *mut usize,
@@ -614,7 +614,7 @@ pub struct LuauApi {
         nresults: c_int,
     ) -> c_int,
 
-    pub luaL_sandbox_: unsafe extern "C-unwind" fn(
+    pub luaL_sandbox: unsafe extern "C-unwind" fn(
         L: *mut lua_State,
     ),
 
@@ -662,4 +662,50 @@ pub struct LuauApi {
         B: *mut luaL_Strbuf,
         size: usize,
     ),
+
+    //
+    // Constants (exported for version-safe access by plugins; read these from the API
+    // rather than hardcoding in cdylib plugins, as Luau may add/shift values across versions)
+    //
+
+    // Stack pseudo-indices
+    pub LUA_REGISTRYINDEX: c_int,
+    pub LUA_ENVIRONINDEX: c_int,
+    pub LUA_GLOBALSINDEX: c_int,
+    pub LUAI_MAXCSTACK: c_int,
+
+    // Thread status (lua_Status)
+    pub LUA_OK: c_int,
+    pub LUA_YIELD: c_int,
+    pub LUA_ERRRUN: c_int,
+    pub LUA_ERRSYNTAX: c_int,
+    pub LUA_ERRMEM: c_int,
+    pub LUA_ERRERR: c_int,
+
+    // GC operations (lua_GCOp)
+    pub LUA_GCSTOP: c_int,
+    pub LUA_GCRESTART: c_int,
+    pub LUA_GCCOLLECT: c_int,
+    pub LUA_GCCOUNT: c_int,
+    pub LUA_GCCOUNTB: c_int,
+    pub LUA_GCISRUNNING: c_int,
+    pub LUA_GCSTEP: c_int,
+    pub LUA_GCSETGOAL: c_int,
+    pub LUA_GCSETSTEPMUL: c_int,
+    pub LUA_GCSETSTEPSIZE: c_int,
+
+    // Type tags (LUA_T*) — kept last so future Luau types can be appended without shifting
+    pub LUA_TNONE: c_int,
+    pub LUA_TNIL: c_int,
+    pub LUA_TBOOLEAN: c_int,
+    pub LUA_TLIGHTUSERDATA: c_int,
+    pub LUA_TNUMBER: c_int,
+    pub LUA_TINTEGER: c_int,
+    pub LUA_TVECTOR: c_int,
+    pub LUA_TSTRING: c_int,
+    pub LUA_TTABLE: c_int,
+    pub LUA_TFUNCTION: c_int,
+    pub LUA_TUSERDATA: c_int,
+    pub LUA_TTHREAD: c_int,
+    pub LUA_TBUFFER: c_int,
 }

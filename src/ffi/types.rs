@@ -7,11 +7,17 @@ use std::os::raw::{c_char, c_double, c_int, c_uint, c_void};
 // Core opaque state
 //
 
+/// Rust equivalent of Luau's C `lua_State`. Zero-sized opaque handle representing
+/// a Luau coroutine/thread — always accessed through a raw pointer (`*mut LuauState`).
+/// `!Send` and `!Sync` by design; Luau states must not be shared across threads.
 #[repr(C)]
-pub struct lua_State {
+pub struct LuauState {
     _data: [u8; 0],
     _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
+
+/// C API compatibility alias — all FFI function signatures use this name.
+pub type lua_State = LuauState;
 
 //
 // Basic numeric types
