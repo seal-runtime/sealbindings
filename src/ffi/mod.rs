@@ -1437,13 +1437,25 @@ pub unsafe fn lua_tonumber(state: *mut lua_State, idx: c_int) -> lua_Number {
     unsafe { (luau_api().lua_tonumber)(state, idx) }
 }
 
-/// Converts value at `idx` to an integer.
+/// Converts a Luau number value at `idx` to an integer.
+/// To use the new 64 bit "integer" type, use lua_tointeger64 instead.
 ///
 /// # Safety
 /// - `state` must be valid.
 /// - `idx` must be valid.
 pub unsafe fn lua_tointeger(state: *mut lua_State, idx: c_int) -> c_int {
     unsafe { (luau_api().lua_tointeger)(state, idx) }
+}
+
+/// Converts value at `idx` to a 64 bit integer.
+/// 
+/// Returns 0 (failure) if `idx` is a Luau number (not a 64 bit integer) or otherwise is the wrong type.
+/// 
+/// # Safety
+/// - `state` must be valid
+/// - `idx` must exist on the Luau stack and should be a 64 bit integer.
+pub unsafe fn lua_tointeger64(state: *mut lua_State, idx: c_int) -> lua_Integer {
+    unsafe { (luau_api().lua_tointeger64)(state, idx) }
 }
 
 /// Converts value at `idx` to an unsigned integer.
@@ -1560,6 +1572,15 @@ pub unsafe fn lua_isthread(state: *mut lua_State, n: c_int) -> c_int {
 /// - `n` must be valid.
 pub unsafe fn lua_isbuffer(state: *mut lua_State, n: c_int) -> c_int {
     unsafe { (luau_api().lua_isbuffer)(state, n) }
+}
+
+/// Returns non-zero if value at stack idx `n` is a 64-bit Luau integer (not to be confused with Luau number).
+/// 
+/// # Safety
+/// - `state` must be valid
+/// - idx `n` must exist on stack and be valid
+pub unsafe fn lua_isinteger64(state: *mut lua_State, n: c_int) -> c_int {
+    unsafe { (luau_api().lua_isinteger64)(state, n) }
 }
 
 /// Returns non‑zero if value at `n` is none (no value).

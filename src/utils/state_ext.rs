@@ -284,9 +284,9 @@ pub trait StateExt {
 
     // --- Stack guards ---
 
-    /// Creates a guard that asserts the stack changed by exactly `delta` on drop.
+    /// Creates a stack guard that asserts the stack changed by exactly `delta` on drop.
     /// Must be called after `sealbindings::initialize()` — panics otherwise.
-    fn stack_guards<'a>(self, delta: c_int) -> LuauStackGuard<'a>;
+    fn stack_changes<'a>(self, delta: c_int) -> LuauStackGuard<'a>;
 
     /// Creates a guard that asserts exactly `n` values were net-pushed on drop.
     /// Must be called after `sealbindings::initialize()` — panics otherwise.
@@ -310,17 +310,11 @@ pub trait StateExt {
 
     // --- Value ---
 
-    /// Reads the value at `idx` and returns an owned `SealValue` with all heap data
-    /// (strings, buffers) cloned out of Luau's memory immediately.
-    /// Returns `Value::None` for out-of-range indices — safe to call with any idx.
-    /// 
-    
-    /// Reads the value at stack `idx` and returns an owned `SealValue` that immediately
-    /// clones data out of Luau (for safety) and is easy to match against for exhaustiveness. 
-    /// This value contains owned data which you cannot mutate in place.
-    /// 
-    /// If you want to mutate a buffer in-place, use `state.get_buffer_mut` instead.
-    /// 
+    /// Reads the value at stack `idx` and returns an owned `SealValue` that's easy to
+    /// match against for exhaustiveness. Strings are cloned out of Luau immediately;
+    /// buffers come back as a non-owning `SealBuffer` view (see `SealBuffer::to_owned`
+    /// and `SealBuffer::as_mut_slice` for cloning/mutating in place).
+    ///
     /// Returns `SealValue::None` if `idx` is out-of-range.
     fn to_seal(self, idx: c_int) -> crate::utils::value::SealValue;
 
@@ -562,7 +556,7 @@ impl StateExt for *mut ffi::lua_State {
         unsafe { ffi::lua_rawseti(self, idx, n) }
     }
     #[track_caller]
-    fn stack_guards<'a>(self, delta: c_int) -> LuauStackGuard<'a> {
+    fn stack_changes<'a>(self, delta: c_int) -> LuauStackGuard<'a> {
         LuauStackGuard::new(self, delta)
     }
     #[track_caller]

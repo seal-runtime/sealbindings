@@ -382,20 +382,9 @@ pub struct LuauApi {
         category_name: Option<unsafe extern "C" fn(state: *mut lua_State, memcat: u8) -> *const c_char>,
     ),
 
-    //
-    // luau_try
-    //
-    // pub luau_try: unsafe extern "C-unwind" fn(
-    //     state: *mut lua_State,
-    //     func: RustCallback,
-    //     data: *mut c_void,
-    // ) -> RustCallbackRet,
-
-    //
-    // Inline helpers / macros implemented as Rust functions
-    //
     pub lua_tonumber: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> lua_Number,
     pub lua_tointeger: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
+    pub lua_tointeger64: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> lua_Integer,
     pub lua_tounsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, i: c_int) -> lua_Unsigned,
     pub lua_pop: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_newtable: unsafe extern "C-unwind" fn(state: *mut lua_State),
@@ -409,6 +398,7 @@ pub struct LuauApi {
     pub lua_isvector: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
     pub lua_isthread: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
     pub lua_isbuffer: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
+    pub lua_isinteger64: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
     pub lua_isnone: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
     pub lua_isnoneornil: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int) -> c_int,
     pub lua_pushliteral: unsafe extern "C-unwind" fn(state: *mut lua_State, s: *const c_char),

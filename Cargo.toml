@@ -1,6 +1,6 @@
 [package]
 name = "sealbindings"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 description = "Bindings to the seal runtime's Luau C Stack API to write FFI plugins."
 

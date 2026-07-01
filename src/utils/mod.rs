@@ -10,4 +10,4 @@ pub use stack_guard::LuauStackGuard;
 pub use strings::{BStringFromPtr, BStringFromLuau};
 pub use table::for_each_in_table;
 pub use debug::type_of;
-pub use value::SealValue;
+pub use value::{SealValue, SealBuffer};
