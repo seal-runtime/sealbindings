@@ -124,8 +124,11 @@ pub trait StateExt {
     /// Pushes a Rust `bool` onto the stack as a Luau boolean.
     fn push_boolean(self, b: bool);
 
-    /// Pushes a Rust `i32` onto the stack as a Luau integer.
+    /// Pushes a Rust `i32` onto the stack as a Luau number.
     fn push_integer(self, n: c_int);
+
+    /// Pushes a Rust `i64` onto the stack as a Luau 64-bit integer.
+    fn push_integer64(self, n: i64);
 
     /// Pushes a Luau vector onto the stack.
     fn push_vector(self, x: f32, y: f32, z: f32);
@@ -457,6 +460,9 @@ impl StateExt for *mut ffi::lua_State {
     }
     fn push_integer(self, n: c_int) {
         unsafe { ffi::lua_pushinteger(self, n) }
+    }
+    fn push_integer64(self, i: i64) {
+        unsafe { ffi::lua_pushinteger64(self, i) };
     }
     fn push_vector(self, x: f32, y: f32, z: f32) {
         unsafe { ffi::lua_pushvector(self, x, y, z) }

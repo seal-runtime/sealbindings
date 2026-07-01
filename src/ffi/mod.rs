@@ -570,13 +570,22 @@ pub unsafe fn lua_pushnumber(state: *mut lua_State, n: lua_Number) {
     unsafe { (luau_api().lua_pushnumber)(state, n) }
 }
 
-/// Pushes an integer onto the stack.
+/// Pushes an integer onto the stack as a Luau number.
 ///
 /// # Safety
 /// - `state` must be valid.
 /// - Stack must have space for one value.
 pub unsafe fn lua_pushinteger(state: *mut lua_State, n: c_int) {
     unsafe { (luau_api().lua_pushinteger)(state, n) }
+}
+
+/// Pushes an integer to the stack as a Luau 64-bit integer.
+/// 
+/// # Safety
+/// - `state` must be valid
+/// - Stack must have space for 1 value.
+pub unsafe fn lua_pushinteger64(state: *mut lua_State, n: lua_Integer) {
+    unsafe { (luau_api().lua_pushinteger64)(state, n) }
 }
 
 /// Pushes an unsigned integer onto the stack.

@@ -112,6 +112,7 @@ pub struct LuauApi {
     pub lua_pushnumber: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Number),
     pub lua_pushinteger: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_pushunsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Unsigned),
+    pub lua_pushinteger64: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Integer),
     pub lua_pushvector: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         x: c_float,
