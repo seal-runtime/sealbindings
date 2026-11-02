@@ -3,6 +3,7 @@ use std::ffi::{CStr, c_char, c_int};
 use bstr::BString;
 
 use crate::{LuauStackGuard, ffi};
+use super::class::{ClassDataShape, MemberAccess};
 use super::strings::BStringFromLuau;
 
 /// Maximum safe pre-allocation size for Luau tables. Exceeding this causes a C++
@@ -65,10 +66,11 @@ pub trait StateExt {
     /// Returns `true` if the value is nil.
     fn is_nil(self, idx: c_int) -> bool;
 
-    /// Returns `true` if the index is out of range (no value there).
+    /// Returns `true` if there's no value at the index, like an argument the caller didn't pass (`SealValue::Missing`).
+    /// This is the C API's "none" (`lua_isnone`), not Luwu's `none` value: use `is_symnone` for that.
     fn is_none(self, idx: c_int) -> bool;
 
-    /// Returns `true` if the index is out of range or the value is nil.
+    /// Returns `true` if there's no value at the index or the value is nil. Luwu's `none` value isn't either.
     fn is_none_or_nil(self, idx: c_int) -> bool;
 
     /// Returns `true` if the table at `idx` is read-only.
@@ -132,6 +134,98 @@ pub trait StateExt {
 
     /// Pushes a Luau vector onto the stack.
     fn push_vector(self, x: f32, y: f32, z: f32);
+
+    /// Pushes a Luau number.
+    fn push_number(self, n: f64);
+
+    /// Pushes Luwu's `none`: a falsy value that, unlike `nil`, keeps its table entry.
+    /// Needs seal built against Luwu (see `LuauApi::lua_pushsymnone`).
+    fn push_symnone(self);
+
+    /// Returns `true` if the value at `idx` is Luwu's `none`.
+    /// Needs seal built against Luwu (see `LuauApi::lua_issymnone`).
+    fn is_symnone(self, idx: c_int) -> bool;
+
+    // --- Luwu classes, traits and objects (safe: they check the value's type first) ---
+
+    /// Returns `true` if the value is a class or a trait. Use `is_trait` to tell them apart.
+    fn is_class(self, idx: c_int) -> bool;
+
+    /// Returns `true` if the value is a trait.
+    fn is_trait(self, idx: c_int) -> bool;
+
+    /// Returns `true` if the value is an object (an instance of a class).
+    fn is_object(self, idx: c_int) -> bool;
+
+    /// The name of the class at `idx` or of the object's class, or `None` for any other value. Names aren't unique:
+    /// use `class_is` to check an object's class.
+    fn class_name(self, idx: c_int) -> Option<BString>;
+
+    /// `class.of`: pushes the class of the object at `idx` and returns `true`. Pushes nothing and returns `false` for
+    /// any other value, a class included.
+    fn push_class_of(self, idx: c_int) -> bool;
+
+    /// Returns `true` if the value at `idx` is an object of exactly the class at `class_idx`. Compares the class
+    /// itself, so a different class with the same name doesn't pass.
+    fn class_is(self, idx: c_int, class_idx: c_int) -> bool;
+
+    /// `class.implements`: returns `true` if the value at `idx` is an object whose class implements the trait at
+    /// `trait_idx`, directly or through `needs`. `false` when the value at `trait_idx` isn't a trait.
+    fn class_implements(self, idx: c_int, trait_idx: c_int) -> bool;
+
+    /// Whether the class or object at `idx` has `member`, and whether it's public or private. `None` when the value
+    /// isn't a class or object.
+    fn member_access(self, idx: c_int, member: &CStr) -> Option<MemberAccess>;
+
+    /// Returns `true` if `member` of the class or object at `idx` is `const`. Methods always are. `false` when the
+    /// member is missing or the value isn't a class or object.
+    fn is_member_const(self, idx: c_int, member: &CStr) -> bool;
+
+    /// Returns `true` if `member` of the trait, class or object at `idx` is `final`, including a member a class gets
+    /// from a trait that declares it `final`. `false` when the member is missing or the value isn't a trait, class or
+    /// object.
+    fn is_member_final(self, idx: c_int, member: &CStr) -> bool;
+
+    /// How objects of the class (or the object's class) at `idx` can be written as data, and whether the class has
+    /// methods. Unless the shape is `ClassDataShape::None`, pushes an array of the field names in constructor order.
+    /// `None` (nothing pushed) when the value isn't a class or object.
+    fn class_data_shape(self, idx: c_int) -> Option<(ClassDataShape, bool)>;
+
+    /// Constructs an object of the class at `class_idx`, passing every value above it to the constructor. The object
+    /// replaces the class and its arguments, so it ends up at `class_idx`. Private constructors are allowed.
+    ///
+    /// # Safety
+    /// The value at `class_idx` must be a class, and the constructor may raise a Luau error.
+    unsafe fn new_object(self, class_idx: c_int);
+
+    /// Makes room for `n` more values on the stack. Returns `false` instead of raising when the stack can't grow,
+    /// unlike `ensure_stack`, so code that can't let a Luau error through can fail its own way.
+    fn check_stack(self, n: c_int) -> bool;
+
+    /// Sets the stack top to `idx`, dropping values above it or filling with nil below it.
+    ///
+    /// # Safety
+    /// - `idx` must be a valid stack index or 0.
+    unsafe fn set_top(self, idx: c_int);
+
+    /// Pops the top value and puts it at `idx`, replacing the value there (`lua_replace`; a plain `replace` would be
+    /// shadowed by the raw pointer's own `replace`).
+    ///
+    /// # Safety
+    /// - `idx` must be a valid stack index.
+    unsafe fn replace_with_top(self, idx: c_int);
+
+    /// Pops a value and then a key, and sets `t[key] = value` without metamethods on the table at `idx`.
+    ///
+    /// # Safety
+    /// - The value at `idx` must be a table, and the stack must hold a key and value above it.
+    unsafe fn rawset(self, idx: c_int);
+
+    /// The bytes of the string at `idx`, without copying them, or `None` when the value isn't a string.
+    ///
+    /// # Safety
+    /// - The slice is only valid while the string stays on the stack: don't pop it or let the GC collect it.
+    unsafe fn borrow_string<'a>(self, idx: c_int) -> Option<&'a [u8]>;
 
     // --- Table field access ---
 
@@ -318,7 +412,8 @@ pub trait StateExt {
     /// buffers come back as a non-owning `SealBuffer` view (see `SealBuffer::to_owned`
     /// and `SealBuffer::as_mut_slice` for cloning/mutating in place).
     ///
-    /// Returns `SealValue::None` if `idx` is out-of-range.
+    /// Returns `SealValue::Missing` if there's no value at `idx`, `SealValue::Symnone` for Luwu's `none`, and
+    /// `SealValue::Other` for a type sealbindings doesn't know yet.
     fn to_seal(self, idx: c_int) -> crate::utils::value::SealValue;
 
     // --- seal helpers ---
@@ -466,6 +561,124 @@ impl StateExt for *mut ffi::lua_State {
     }
     fn push_vector(self, x: f32, y: f32, z: f32) {
         unsafe { ffi::lua_pushvector(self, x, y, z) }
+    }
+    #[inline]
+    fn push_number(self, n: f64) {
+        unsafe { ffi::lua_pushnumber(self, n) }
+    }
+    #[inline]
+    fn push_symnone(self) {
+        // SAFETY: `self` is a valid state, and seal built against Luwu provides `lua_pushsymnone`
+        unsafe { ffi::lua_pushsymnone(self) }
+    }
+    #[inline]
+    fn is_symnone(self, idx: c_int) -> bool {
+        // SAFETY: `self` is a valid state; `lua_issymnone` only reads the type tag, so any `idx` is fine
+        unsafe { ffi::lua_issymnone(self, idx) != 0 }
+    }
+    #[inline]
+    fn is_class(self, idx: c_int) -> bool {
+        self.type_tag(idx) == ffi::LUA_TCLASS()
+    }
+    #[inline]
+    fn is_trait(self, idx: c_int) -> bool {
+        // SAFETY: `lua_istrait` only reads the value's type and its class, so any `idx` is fine
+        unsafe { ffi::lua_istrait(self, idx) != 0 }
+    }
+    #[inline]
+    fn is_object(self, idx: c_int) -> bool {
+        self.type_tag(idx) == ffi::LUA_TOBJECT()
+    }
+    fn class_name(self, idx: c_int) -> Option<BString> {
+        let has_class = self.is_class(idx) || self.is_object(idx);
+        // SAFETY: the value at `idx` is a class or object
+        has_class.then(|| unsafe { super::value::class_name(self, idx) })
+    }
+    fn push_class_of(self, idx: c_int) -> bool {
+        // SAFETY: `lua_classof` pushes nothing for a value that isn't an object
+        unsafe { ffi::lua_classof(self, idx) != 0 }
+    }
+    fn class_is(self, idx: c_int, class_idx: c_int) -> bool {
+        // SAFETY: `lua_classis` only raises when the value at `class_idx` isn't a class, which is checked first
+        self.is_class(class_idx) && unsafe { ffi::lua_classis(self, idx, class_idx) != 0 }
+    }
+    fn class_implements(self, idx: c_int, trait_idx: c_int) -> bool {
+        // SAFETY: `lua_classimplements` only raises when the value at `trait_idx` isn't a trait, which is checked first
+        self.is_trait(trait_idx) && unsafe { ffi::lua_classimplements(self, idx, trait_idx) != 0 }
+    }
+    fn is_member_final(self, idx: c_int, member: &CStr) -> bool {
+        let has_class = self.is_class(idx) || self.is_object(idx);
+        // SAFETY: the value at `idx` is a trait, class or object (a trait's type is a class's), so it doesn't raise
+        has_class && unsafe { ffi::lua_ismemberfinal(self, idx, member.as_ptr()) != 0 }
+    }
+    fn member_access(self, idx: c_int, member: &CStr) -> Option<MemberAccess> {
+        if !self.is_class(idx) && !self.is_object(idx) {
+            return None;
+        }
+        // SAFETY: the value at `idx` is a class or object, so `lua_getmemberaccess` doesn't raise
+        let access = unsafe { ffi::lua_getmemberaccess(self, idx, member.as_ptr()) };
+        if access == ffi::LUA_MEMBERPUBLIC() {
+            Some(MemberAccess::Public)
+        } else if access == ffi::LUA_MEMBERPRIVATE() {
+            Some(MemberAccess::Private)
+        } else {
+            Some(MemberAccess::Missing)
+        }
+    }
+    fn is_member_const(self, idx: c_int, member: &CStr) -> bool {
+        let has_class = self.is_class(idx) || self.is_object(idx);
+        // SAFETY: the value at `idx` is a class or object, so `lua_ismemberconst` doesn't raise
+        has_class && unsafe { ffi::lua_ismemberconst(self, idx, member.as_ptr()) != 0 }
+    }
+    fn class_data_shape(self, idx: c_int) -> Option<(ClassDataShape, bool)> {
+        if !self.is_class(idx) && !self.is_object(idx) {
+            return None;
+        }
+        let mut has_methods: c_int = 0;
+        // SAFETY: the value at `idx` is a class or object
+        let shape = unsafe { ffi::lua_getclassdatashape(self, idx, &mut has_methods) };
+        let shape = if shape == ffi::LUA_CLASSDATA_POSITIONAL() {
+            ClassDataShape::Positional
+        } else if shape == ffi::LUA_CLASSDATA_TABLE() {
+            ClassDataShape::Table
+        } else {
+            ClassDataShape::None
+        };
+        Some((shape, has_methods != 0))
+    }
+    unsafe fn new_object(self, class_idx: c_int) {
+        unsafe { ffi::lua_newobject(self, class_idx) }
+    }
+    #[inline]
+    fn check_stack(self, n: c_int) -> bool {
+        unsafe { ffi::lua_checkstack(self, n) != 0 }
+    }
+    #[inline]
+    unsafe fn set_top(self, idx: c_int) {
+        unsafe { ffi::lua_settop(self, idx) }
+    }
+    #[inline]
+    unsafe fn replace_with_top(self, idx: c_int) {
+        unsafe { ffi::lua_replace(self, idx) }
+    }
+    #[inline]
+    unsafe fn rawset(self, idx: c_int) {
+        unsafe { ffi::lua_rawset(self, idx) }
+    }
+    #[inline]
+    unsafe fn borrow_string<'a>(self, idx: c_int) -> Option<&'a [u8]> {
+        if !self.is_string(idx) {
+            return None;
+        }
+        let mut len: usize = 0;
+        // SAFETY: the value at `idx` is a string, so `lua_tolstring` returns its bytes without converting anything
+        let ptr = unsafe { ffi::lua_tolstring(self, idx, &mut len) };
+        if ptr.is_null() {
+            return None;
+        }
+        // SAFETY: Luau strings are `len` initialized bytes that stay put while the string is alive, and the caller
+        // keeps it on the stack for as long as it uses the slice
+        Some(unsafe { std::slice::from_raw_parts(ptr as *const u8, len) })
     }
     unsafe fn get_field(self, object_idx: c_int, field: &CStr) -> c_int {
         unsafe { ffi::lua_getfield(self, object_idx, field.as_ptr()) }

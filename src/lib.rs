@@ -9,6 +9,45 @@ use std::sync::OnceLock;
 
 static LUAU_API: OnceLock<&'static LuauApi> = OnceLock::new();
 
+/// The plugin API version this plugin was built for. seal reads it before calling `seal_open_extern` and refuses a
+/// plugin built for another version, so a plugin never reads functions out of a table with a different layout.
+#[unsafe(no_mangle)]
+pub static seal_extern_api_version: u32 = ffi::api::SEAL_API_VERSION;
+
+/// The first fields of every versioned `LuauApi`
+#[repr(C)]
+struct ApiHeader {
+    magic: u64,
+    version: u32,
+    size: u32,
+}
+
+/// Why the table seal passed can't be used, or None when it matches these bindings
+fn api_mismatch(api: *const LuauApi) -> Option<String> {
+    // SAFETY: every seal plugin API table, versioned or not, starts with at least 16 bytes of readable memory
+    let header = unsafe { &*(api as *const ApiHeader) };
+    let expected = ffi::api::SEAL_API_VERSION;
+    if header.magic != ffi::api::SEAL_API_MAGIC {
+        return Some(format!(
+            "this seal's plugin API predates versioning, but the plugin was built for version {expected}; update seal"
+        ));
+    }
+    if header.version != expected {
+        return Some(format!(
+            "this seal provides plugin API version {}, but the plugin was built for version {expected}; rebuild the plugin against the sealbindings that matches this seal",
+            header.version
+        ));
+    }
+    let size = std::mem::size_of::<LuauApi>();
+    if header.size as usize != size {
+        return Some(format!(
+            "seal's plugin API table is {} bytes but sealbindings expects {size} for the same version {expected}; seal and sealbindings have drifted",
+            header.size
+        ));
+    }
+    None
+}
+
 #[allow(non_snake_case)]
 /// Version-sensitive Luau constants copied from the LuauApi during `initialize()`.
 pub(crate) struct LuauConstants {
@@ -49,6 +88,16 @@ pub(crate) struct LuauConstants {
     pub LUA_TUSERDATA:      c_int,
     pub LUA_TTHREAD:        c_int,
     pub LUA_TBUFFER:        c_int,
+    // Luwu classes and traits
+    pub LUA_TSYMNONE:       c_int,
+    pub LUA_TCLASS:         c_int,
+    pub LUA_TOBJECT:        c_int,
+    pub LUA_MEMBERMISSING:  c_int,
+    pub LUA_MEMBERPUBLIC:   c_int,
+    pub LUA_MEMBERPRIVATE:  c_int,
+    pub LUA_CLASSDATA_NONE: c_int,
+    pub LUA_CLASSDATA_POSITIONAL: c_int,
+    pub LUA_CLASSDATA_TABLE: c_int,
 }
 
 pub(crate) static LUAU_CONSTANTS: OnceLock<LuauConstants> = OnceLock::new();
@@ -84,6 +133,12 @@ where
     F: FnOnce(*mut ffi::lua_State) -> c_int,
 {
     assert!(!api.is_null(), "LuauApi pointer is null");
+    // Nothing past the header may be read from a table of another layout: its functions would be the wrong ones.
+    // Returning 0 without touching the stack makes seal report that loading failed.
+    if let Some(reason) = api_mismatch(api) {
+        eprintln!("seal extern plugin can't load: {reason}");
+        return 0;
+    }
     unsafe {
         let api_ref = &*api;
         LUAU_API.set(api_ref).ok();
@@ -121,6 +176,15 @@ where
             LUA_TUSERDATA:     api_ref.LUA_TUSERDATA,
             LUA_TTHREAD:       api_ref.LUA_TTHREAD,
             LUA_TBUFFER:       api_ref.LUA_TBUFFER,
+            LUA_TSYMNONE:      api_ref.LUA_TSYMNONE,
+            LUA_TCLASS:        api_ref.LUA_TCLASS,
+            LUA_TOBJECT:       api_ref.LUA_TOBJECT,
+            LUA_MEMBERMISSING: api_ref.LUA_MEMBERMISSING,
+            LUA_MEMBERPUBLIC:  api_ref.LUA_MEMBERPUBLIC,
+            LUA_MEMBERPRIVATE: api_ref.LUA_MEMBERPRIVATE,
+            LUA_CLASSDATA_NONE: api_ref.LUA_CLASSDATA_NONE,
+            LUA_CLASSDATA_POSITIONAL: api_ref.LUA_CLASSDATA_POSITIONAL,
+            LUA_CLASSDATA_TABLE: api_ref.LUA_CLASSDATA_TABLE,
         }).ok();
     }
 

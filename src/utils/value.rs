@@ -34,13 +34,21 @@ use super::strings::BStringFromLuau;
 ///     SealValue::Table                 => { /* use for_each_in_table etc. */ }
 ///     SealValue::Function              => { /* use lua_call etc. */ }
 ///     SealValue::Nil                   => {}
-///     SealValue::None                  => { /* idx was out of range */ }
+///     SealValue::Symnone               => { /* Luwu's none */ }
+///     SealValue::Class { name }        => { /* a class; compare two classes with lua_rawequal */ }
+///     SealValue::Trait { name }        => { /* a trait */ }
+///     SealValue::Object { class_name } => { /* check its class exactly with state.class_is */ }
+///     SealValue::Missing               => { /* no value at idx, like an argument that wasn't passed */ }
+///     SealValue::Other { tag }         => { /* a type sealbindings doesn't know yet */ }
 /// }
 /// ```
 pub enum SealValue {
-    /// The stack index was out of range (no value there). Mirrors `LUA_TNONE`.
-    None,
+    /// No value at the index: it's past the top of the stack, like an argument the caller didn't pass. The C API calls
+    /// this "none" (`LUA_TNONE`, `lua_isnone`), which isn't Luwu's `none` value: that's `Symnone`.
+    Missing,
     Nil,
+    /// Luwu's `none` value: falsy like `nil`, but it keeps its table entry. The C API calls it `LUA_TSYMNONE`.
+    Symnone,
     Boolean(bool),
     /// A Luau 64-bit integer with the "integer" type. Not to be confused with an integer Luau Number.
     Integer(i64),
@@ -62,6 +70,16 @@ pub enum SealValue {
     Table,
     /// A function (C or Luau). Remains on the stack — use `lua_call` etc.
     Function,
+    /// A Luwu class. `name` is the name it was declared with, which isn't unique: compare the class itself
+    /// (`lua_rawequal` on the two classes) to tell two classes apart.
+    Class { name: BString },
+    /// A Luwu trait.
+    Trait { name: BString },
+    /// An instance of a Luwu class. `class_name` isn't unique either: use `StateExt::class_is` to check its class.
+    /// Read its fields with `get_field`, which can read private fields too.
+    Object { class_name: BString },
+    /// A type sealbindings doesn't know yet. `tag` is its `lua_type`.
+    Other { tag: c_int },
 }
 
 impl SealValue {
@@ -69,8 +87,9 @@ impl SealValue {
     /// Useful for logging and debugging without reaching back into the Luau stack.
     pub fn debug_info(&self) -> String {
         match self {
-            SealValue::None => "none (stack index out of range)".to_string(),
+            SealValue::Missing => "missing (no value at this index)".to_string(),
             SealValue::Nil => "nil".to_string(),
+            SealValue::Symnone => "none".to_string(),
             SealValue::Boolean(b) => format!("boolean({b})"),
             SealValue::Integer(n) => format!("64-bit integer({n})"),
             SealValue::Number(f) => format!("number({f})"),
@@ -85,6 +104,10 @@ impl SealValue {
             SealValue::Thread(ptr) => format!("thread({ptr:?})"),
             SealValue::Table => "table".to_string(),
             SealValue::Function => "function".to_string(),
+            SealValue::Class { name } => format!("class({name})"),
+            SealValue::Trait { name } => format!("trait({name})"),
+            SealValue::Object { class_name } => format!("object({class_name})"),
+            SealValue::Other { tag } => format!("value of type tag {tag}"),
         }
     }
 }
@@ -105,7 +128,7 @@ impl std::fmt::Debug for SealValue {
 pub unsafe fn create(state: *mut ffi::lua_State, idx: c_int) -> SealValue {
     let tag = unsafe { ffi::lua_type(state, idx) };
 
-    if tag == ffi::LUA_TNONE()    { return SealValue::None; }
+    if tag == ffi::LUA_TNONE()    { return SealValue::Missing; }
     if tag == ffi::LUA_TNIL()     { return SealValue::Nil; }
 
     if tag == ffi::LUA_TBOOLEAN() {
@@ -152,10 +175,27 @@ pub unsafe fn create(state: *mut ffi::lua_State, idx: c_int) -> SealValue {
     if tag == ffi::LUA_TTHREAD()   { return SealValue::Thread(unsafe { ffi::lua_tothread(state, idx) }); }
     if tag == ffi::LUA_TTABLE()    { return SealValue::Table; }
     if tag == ffi::LUA_TFUNCTION() { return SealValue::Function; }
+    if tag == ffi::LUA_TSYMNONE()  { return SealValue::Symnone; }
+    if tag == ffi::LUA_TCLASS() {
+        let name = unsafe { class_name(state, idx) };
+        let is_trait = unsafe { ffi::lua_istrait(state, idx) } != 0;
+        return if is_trait { SealValue::Trait { name } } else { SealValue::Class { name } };
+    }
+    if tag == ffi::LUA_TOBJECT() {
+        return SealValue::Object { class_name: unsafe { class_name(state, idx) } };
+    }
 
-    // future Luau versions will add classes, objects, and other types. for now treat them as None
+    SealValue::Other { tag }
+}
 
-    SealValue::None
+/// The name of the class or object's class at `idx`, cloned out of Luau's memory.
+///
+/// # Safety
+/// - `state` must be non-null, and the value at `idx` a class or object
+pub(crate) unsafe fn class_name(state: *mut ffi::lua_State, idx: c_int) -> BString {
+    let name = unsafe { ffi::lua_getclassname(state, idx) };
+    assert!(!name.is_null(), "class_name needs a class or object");
+    BString::from(unsafe { std::ffi::CStr::from_ptr(name) }.to_bytes())
 }
 
 /// A non-owning view into a Luau buffer's bytes.

@@ -4,8 +4,26 @@ use crate::ffi::types::*;
 use std::os::raw::{c_char, c_double, c_float, c_int, c_void};
 
 
+/// The first eight bytes of seal's plugin API table. `initialize` checks them to tell a versioned table from an
+/// older seal's, whose first field is a function pointer.
+pub const SEAL_API_MAGIC: u64 = u64::from_le_bytes(*b"SEALAPI\0");
+
+/// The plugin API version these bindings were written for. It has to match the seal that loads the plugin: seal checks
+/// the exported `seal_extern_api_version` before calling `seal_open_extern`, and `initialize` checks the table's.
+pub const SEAL_API_VERSION: u32 = 1;
+
 #[repr(C)]
 pub struct LuauApi {
+    //
+    // Header: always first and never changes shape, so any plugin can check it before reading anything else
+    //
+    /// `SEAL_API_MAGIC`
+    pub magic: u64,
+    /// `SEAL_API_VERSION`
+    pub version: u32,
+    /// `size_of::<LuauApi>()` as seal built it
+    pub size: u32,
+
     //
     // State manipulation
     //
@@ -112,7 +130,7 @@ pub struct LuauApi {
     pub lua_pushnumber: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Number),
     pub lua_pushinteger: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_pushunsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Unsigned),
-    pub lua_pushinteger64: unsafe extern "C-unwind" fn(state: *mut lua_State, n: lua_Integer),
+    pub lua_pushinteger64: unsafe extern "C-unwind" fn(state: *mut lua_State, n: i64),
     pub lua_pushvector: unsafe extern "C-unwind" fn(
         state: *mut lua_State,
         x: c_float,
@@ -385,7 +403,7 @@ pub struct LuauApi {
 
     pub lua_tonumber: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> lua_Number,
     pub lua_tointeger: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
-    pub lua_tointeger64: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> lua_Integer,
+    pub lua_tointeger64: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> i64,
     pub lua_tounsigned: unsafe extern "C-unwind" fn(state: *mut lua_State, i: c_int) -> lua_Unsigned,
     pub lua_pop: unsafe extern "C-unwind" fn(state: *mut lua_State, n: c_int),
     pub lua_newtable: unsafe extern "C-unwind" fn(state: *mut lua_State),
@@ -699,4 +717,49 @@ pub struct LuauApi {
     pub LUA_TUSERDATA: c_int,
     pub LUA_TTHREAD: c_int,
     pub LUA_TBUFFER: c_int,
+
+    // Luwu additions
+    pub lua_pushsymnone: unsafe extern "C-unwind" fn(state: *mut lua_State),
+    pub lua_issymnone: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
+
+    // Luwu classes and traits
+    pub LUA_TSYMNONE: c_int,
+    /// A class or a trait (`lua_istrait` tells them apart)
+    pub LUA_TCLASS: c_int,
+    /// An instance of a class
+    pub LUA_TOBJECT: c_int,
+    /// What `lua_getmemberaccess` returns
+    pub LUA_MEMBERMISSING: c_int,
+    pub LUA_MEMBERPUBLIC: c_int,
+    pub LUA_MEMBERPRIVATE: c_int,
+    /// What `lua_getclassdatashape` returns
+    pub LUA_CLASSDATA_NONE: c_int,
+    pub LUA_CLASSDATA_POSITIONAL: c_int,
+    pub LUA_CLASSDATA_TABLE: c_int,
+    /// Constructs an object of the class at `idx`, passing the values above it to its constructor. The object replaces
+    /// the class and its arguments. Private constructors are allowed, since the plugin is trusted.
+    pub lua_newobject: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int),
+    /// Whether the value at `idx` is a trait
+    pub lua_istrait: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
+    /// `class.of`: pushes the class of the object at `idx` and returns 1. Returns 0 and pushes nothing for any other
+    /// value, a class included.
+    pub lua_classof: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> c_int,
+    /// `class.is`: whether the value at `idx` is an object of exactly the class at `classidx`. Raises if the value at
+    /// `classidx` isn't a class.
+    pub lua_classis: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, classidx: c_int) -> c_int,
+    /// `class.implements`: whether the value at `idx` is an object whose class implements the trait at `traitidx`,
+    /// directly or through `needs`. Raises if the value at `traitidx` isn't a trait.
+    pub lua_classimplements: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, traitidx: c_int) -> c_int,
+    /// Whether the member of the trait, class or object at `idx` is `final`, including one a class gets from a trait.
+    /// Raises for other values.
+    pub lua_ismemberfinal: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int,
+    /// The name of the class at `idx` or of the object's class, or null for other values
+    pub lua_getclassname: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int) -> *const c_char,
+    /// Whether the class or object at `idx` has the member, and whether it's public or private. Raises for other values.
+    pub lua_getmemberaccess: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int,
+    /// Whether the member of the class or object at `idx` is `const`. Methods always are. Raises for other values.
+    pub lua_ismemberconst: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int,
+    /// How objects of the class at `idx` can be written as data (a `LUA_CLASSDATA_*`). Pushes an array of the field
+    /// names in constructor order unless it's `LUA_CLASSDATA_NONE`, and sets `hasmethods`.
+    pub lua_getclassdatashape: unsafe extern "C-unwind" fn(state: *mut lua_State, idx: c_int, hasmethods: *mut c_int) -> c_int,
 }

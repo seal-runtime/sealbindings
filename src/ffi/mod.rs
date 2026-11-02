@@ -78,6 +78,19 @@ fn constants() -> &'static crate::LuauConstants {
 #[inline(always)] pub fn LUA_TUSERDATA()      -> c_int { constants().LUA_TUSERDATA }
 #[inline(always)] pub fn LUA_TTHREAD()        -> c_int { constants().LUA_TTHREAD }
 #[inline(always)] pub fn LUA_TBUFFER()        -> c_int { constants().LUA_TBUFFER }
+#[inline(always)] pub fn LUA_TSYMNONE()       -> c_int { constants().LUA_TSYMNONE }
+#[inline(always)] pub fn LUA_TCLASS()         -> c_int { constants().LUA_TCLASS }
+#[inline(always)] pub fn LUA_TOBJECT()        -> c_int { constants().LUA_TOBJECT }
+
+// Luwu class members (lua_MemberAccess)
+#[inline(always)] pub fn LUA_MEMBERMISSING()  -> c_int { constants().LUA_MEMBERMISSING }
+#[inline(always)] pub fn LUA_MEMBERPUBLIC()   -> c_int { constants().LUA_MEMBERPUBLIC }
+#[inline(always)] pub fn LUA_MEMBERPRIVATE()  -> c_int { constants().LUA_MEMBERPRIVATE }
+
+// How a class's objects can be written as data (lua_ClassDataShape)
+#[inline(always)] pub fn LUA_CLASSDATA_NONE()       -> c_int { constants().LUA_CLASSDATA_NONE }
+#[inline(always)] pub fn LUA_CLASSDATA_POSITIONAL() -> c_int { constants().LUA_CLASSDATA_POSITIONAL }
+#[inline(always)] pub fn LUA_CLASSDATA_TABLE()      -> c_int { constants().LUA_CLASSDATA_TABLE }
 
 //
 // State manipulation
@@ -561,6 +574,126 @@ pub unsafe fn lua_pushnil(state: *mut lua_State) {
     unsafe { (luau_api().lua_pushnil)(state) }
 }
 
+/// Pushes Luwu's `none`: a falsy value that, unlike `nil`, keeps its table entry.
+///
+/// # Safety
+/// - `state` must be valid
+/// - Stack must have space for 1 value.
+/// - seal must be built against Luwu (see `LuauApi::lua_pushsymnone`).
+pub unsafe fn lua_pushsymnone(state: *mut lua_State) {
+    unsafe { (luau_api().lua_pushsymnone)(state) }
+}
+
+/// Returns 1 if the value at `idx` is Luwu's `none`, 0 otherwise.
+///
+/// # Safety
+/// - `state` must be valid
+/// - seal must be built against Luwu (see `LuauApi::lua_issymnone`).
+pub unsafe fn lua_issymnone(state: *mut lua_State, idx: c_int) -> c_int {
+    unsafe { (luau_api().lua_issymnone)(state, idx) }
+}
+
+//
+// Luwu classes and traits
+//
+
+/// Constructs an object of the class at `idx`, passing every value above `idx` to its constructor. The object
+/// replaces the class and its arguments, so it ends up at `idx`. Private constructors are allowed.
+///
+/// # Safety
+/// - `state` must be valid
+/// - Raises a Luau error when the value at `idx` isn't a class or the constructor raises.
+pub unsafe fn lua_newobject(state: *mut lua_State, idx: c_int) {
+    unsafe { (luau_api().lua_newobject)(state, idx) }
+}
+
+/// Returns 1 if the value at `idx` is a trait, 0 otherwise. A trait's `lua_type` is `LUA_TCLASS`.
+///
+/// # Safety
+/// - `state` must be valid
+pub unsafe fn lua_istrait(state: *mut lua_State, idx: c_int) -> c_int {
+    unsafe { (luau_api().lua_istrait)(state, idx) }
+}
+
+/// `class.of`: pushes the class of the object at `idx` and returns 1. Returns 0 and pushes nothing for any other value,
+/// a class included.
+///
+/// # Safety
+/// - `state` must be valid
+/// - Stack must have space for 1 value.
+pub unsafe fn lua_classof(state: *mut lua_State, idx: c_int) -> c_int {
+    unsafe { (luau_api().lua_classof)(state, idx) }
+}
+
+/// `class.is`: returns 1 if the value at `idx` is an object of exactly the class at `classidx`, 0 otherwise.
+///
+/// # Safety
+/// - `state` must be valid
+/// - Raises a Luau error when the value at `classidx` isn't a class.
+pub unsafe fn lua_classis(state: *mut lua_State, idx: c_int, classidx: c_int) -> c_int {
+    unsafe { (luau_api().lua_classis)(state, idx, classidx) }
+}
+
+/// `class.implements`: returns 1 if the value at `idx` is an object whose class implements the trait at `traitidx`,
+/// directly or through `needs`, 0 otherwise.
+///
+/// # Safety
+/// - `state` must be valid
+/// - Raises a Luau error when the value at `traitidx` isn't a trait.
+pub unsafe fn lua_classimplements(state: *mut lua_State, idx: c_int, traitidx: c_int) -> c_int {
+    unsafe { (luau_api().lua_classimplements)(state, idx, traitidx) }
+}
+
+/// Returns 1 if `membername` of the trait, class or object at `idx` is `final`, including a member a class gets from a
+/// trait that declares it `final`. 0 if it isn't or the member is missing.
+///
+/// # Safety
+/// - `state` must be valid, and `membername` a NUL-terminated string
+/// - Raises a Luau error when the value at `idx` isn't a trait, class or object.
+pub unsafe fn lua_ismemberfinal(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int {
+    unsafe { (luau_api().lua_ismemberfinal)(state, idx, membername) }
+}
+
+/// The name of the class at `idx` or of the object's class, or null for any other value. The string lives as long as
+/// the class does.
+///
+/// # Safety
+/// - `state` must be valid
+pub unsafe fn lua_getclassname(state: *mut lua_State, idx: c_int) -> *const c_char {
+    unsafe { (luau_api().lua_getclassname)(state, idx) }
+}
+
+/// Whether the class or object at `idx` has `membername`: `LUA_MEMBERMISSING`, `LUA_MEMBERPUBLIC` or
+/// `LUA_MEMBERPRIVATE`.
+///
+/// # Safety
+/// - `state` must be valid, and `membername` a NUL-terminated string
+/// - Raises a Luau error when the value at `idx` isn't a class or object.
+pub unsafe fn lua_getmemberaccess(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int {
+    unsafe { (luau_api().lua_getmemberaccess)(state, idx, membername) }
+}
+
+/// Returns 1 if `membername` of the class or object at `idx` is `const` (methods always are), 0 if it isn't or the
+/// member is missing.
+///
+/// # Safety
+/// - `state` must be valid, and `membername` a NUL-terminated string
+/// - Raises a Luau error when the value at `idx` isn't a class or object.
+pub unsafe fn lua_ismemberconst(state: *mut lua_State, idx: c_int, membername: *const c_char) -> c_int {
+    unsafe { (luau_api().lua_ismemberconst)(state, idx, membername) }
+}
+
+/// How objects of the class (or the object's class) at `idx` can be written as data: a `LUA_CLASSDATA_*`. Unless it's
+/// `LUA_CLASSDATA_NONE`, pushes an array of the field names in constructor order. Sets `hasmethods` to 1 when the
+/// class has methods or metamethods.
+///
+/// # Safety
+/// - `state` must be valid, and the value at `idx` a class or object
+/// - Stack must have space for 1 value.
+pub unsafe fn lua_getclassdatashape(state: *mut lua_State, idx: c_int, hasmethods: *mut c_int) -> c_int {
+    unsafe { (luau_api().lua_getclassdatashape)(state, idx, hasmethods) }
+}
+
 /// Pushes a number onto the stack.
 ///
 /// # Safety
@@ -584,7 +717,7 @@ pub unsafe fn lua_pushinteger(state: *mut lua_State, n: c_int) {
 /// # Safety
 /// - `state` must be valid
 /// - Stack must have space for 1 value.
-pub unsafe fn lua_pushinteger64(state: *mut lua_State, n: lua_Integer) {
+pub unsafe fn lua_pushinteger64(state: *mut lua_State, n: i64) {
     unsafe { (luau_api().lua_pushinteger64)(state, n) }
 }
 
@@ -1463,7 +1596,7 @@ pub unsafe fn lua_tointeger(state: *mut lua_State, idx: c_int) -> c_int {
 /// # Safety
 /// - `state` must be valid
 /// - `idx` must exist on the Luau stack and should be a 64 bit integer.
-pub unsafe fn lua_tointeger64(state: *mut lua_State, idx: c_int) -> lua_Integer {
+pub unsafe fn lua_tointeger64(state: *mut lua_State, idx: c_int) -> i64 {
     unsafe { (luau_api().lua_tointeger64)(state, idx) }
 }
 

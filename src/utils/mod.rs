@@ -1,4 +1,5 @@
 mod state_ext;
+mod class;
 mod strings;
 mod table;
 mod debug;
@@ -11,3 +12,4 @@ pub use strings::{BStringFromPtr, BStringFromLuau};
 pub use table::for_each_in_table;
 pub use debug::type_of;
 pub use value::{SealValue, SealBuffer};
+pub use class::{MemberAccess, ClassDataShape};
